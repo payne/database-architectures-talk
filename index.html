@@ -93,6 +93,251 @@
 						</textarea>
 					</section>
 				</section>
+				<section>Part II: How Databases Store Data</section>
+				<section data-markdown>
+					<textarea data-template>
+						Relational database storage engines use one of three algorithms:
+
+						* Append-only log
+						* SSTables
+						* B-Trees
+
+						<div style='font-size: 0.6em'>(non-relational databases may do something else entirely)</div>
+					</textarea>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							**Append-only logs** are the simplest:
+	
+							<div style="font-size:24px">
+	
+								#!/bin/bash
+		
+								db_set () {
+									echo "$1,$2" >> database
+								}
+		
+								db_get () {
+									grep "^$1," database | sed -e "s/^$1,//" | tail -n 1
+								}
+	
+							</div>
+	
+							<div style="font-size:24px">
+	
+								$ db_set 123456 '{"name":"London","attractions":["Big Ben","London Eye"]}'
+								
+								$ db_set 42 '{"name":"San Francisco","attractions":["Big Ben","Golden Gate Bridge"]}'
+	
+								$ cat database
+								123456,{"name":"London","attractions":["Big Ben","London Eye"]}
+								42,{"name":"San Francisco","attractions":["Big Ben","Golden Gate Bridge"]}
+	
+								$ db_get 42
+								{"name": "San Francisco","attractions":["Golden Gate Bridge"]}
+							</div>
+	
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Writes are `O(1)` (append), good.
+
+							Reads are `O(n)` (full file scan), bad.
+
+							How do we improve this?
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							One improvement&mdash;ocassionally apply **compaction** to the data:
+
+							```csv
+							mew,1078,
+							purr,2103,
+							purr,2104,
+							mew,1079,
+							mew,1080,
+							mew,1081,
+							purr,2105,
+							yawn,511,
+							```
+
+							Compacted becomes:
+
+							```csv
+							mew,1081,
+							purr,2105,
+							yawn,511,
+							```
+
+							Which is much faster to scan!
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Another&mdash;use an **index**.
+
+							<img src="img/log-index.png" width="100%"/>
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							This give us `O(1)` read and `O(1)` write performance.
+
+							However, range queries are still `O(n)`.
+
+							Also, the hash table must fit into memory.
+						</textarea>
+					</section>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							Next, **SSTables**.
+
+							But first we'll need a couple of new tools.
+						</textarea>
+					</section>
+					<section>
+						<div style="font-size:0.8em">
+							<p>
+								The SSLTables algorithm uses a <b>balanced tree algorithm</b>.
+							</p>
+							<p>
+								A tree with <code>n</code> nodes is said to be balanced if it has a height of at most <code>log(n)</code>.
+							</p>
+
+							<img src="img/tree-balancing.png" width="400px" />
+						</div>
+					</section>
+					<section>
+						<div style="font-size:0.8em">
+							<p>
+								There are certain algorithms that gaurantee that the tree will be balanced no matter what order of inserts, updates, and deletes you use.
+							</p>
+							<p>
+								These use node rotations and are typically taught in an intro to data structures class:
+							</p>
+							<img src="img/red-black-restructure.gif" width="400px" />
+						</div>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Key feature: balanced tree algorithms let you insert key in any order, then iterate over them in sorted order in linear time.
+						</textarea>
+					</section>
+					<section>
+						<div style="font-size:0.8em">
+							<p>
+								SSLTables also needs <b>segmentation</b>.
+							</p>
+							<p>
+								Instead of using one log file, SSLTables has multiple log files ("segments").
+							</p>
+							<p>
+								Compaction compresses these many log segments into a single log segment.
+							</p>
+						</div>
+					</section>
+					<section>
+						<div style="font-size:0.6em">
+							<p>
+								The full SSLTables write algorithm:
+								<ol>
+									<li>
+										When a write comes in, store it in an in-memory balanced tree (the "memtable").
+									</li>
+									<li>
+										When the memtable exceeds a certain size, write it to disk as an (ordered) log segment.
+									</li>
+									<li>
+										When compaction kicks off, simultaneously iterate through all of the log files in sorted, last-write-wins order. Write the "winning" record to the new log file.
+									</li>
+								</ol>
+							</p>
+						</div>
+					</section>
+					<section>
+						<div style="font-size:0.6em">
+							<p>
+								The full SSLTables read algorithm:
+								<ol>
+									<li>
+										When a read comes in, check the memtable for the data.
+										<br/>
+										Because the memtable is a balanced tree, it can be searched in <code>O(log n)</code> time.
+									</li>
+									<li>
+										If it's not there, check the most recent log segment.
+										<br/>
+										Because the log segment is sorted, it can be searched in <code>O(log n)</code> time.
+									</li>
+									<li>
+										If it's not there either, check the second most recent log segment.
+									</li>
+									<li>
+										Repeat you find it.
+									</li>
+								</ol>
+							</p>
+						</div>
+					</section>
+					<section>
+						<div style="font-size:0.6em">
+							<p>
+								Performance considerations:
+								<ul>
+									<li>
+										Append-only logs offers <code>O(1)</code> writes, SSLTables offers <code>O(log n)</code> writes.
+									</li>
+									<li>
+										Append-only logs offer <code>O(1)</code> reads, subject to the restriction that the hash map fits in memory. Otherwise read performance degrades to <code>O(n)</code>.
+									</li>
+									<li>
+										SSLTables offers <code>O(log n)</code> writes <b>with no restrictions on database size</b>.
+										<br/><br/>
+										This is because the log files are in sorted order! If all keys are the same size, log files can be binary searched. If keys can be different sizes, a sparse index can be used to achieve the same (amortized) time.
+									</li>
+									<li>
+										Append-only logs have <code>O(n)</code> range queries (e.g. "find all words between 'cat' and 'cop'"). SSLTables have <code>O(log n)</code> range queries.
+									</li>
+								</ul>
+							</p>
+						</div>
+					</section>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							Next, **B-Trees**.
+
+							All of the "classical" databases use this algorithm.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							A B-tree is a balanced tree algorithm that is optimized for storage on disk.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							New idea: **pages**.
+
+							![](img/page-size.png)
+						</textarea>
+					</section>
+					<section>
+						<img src="img/b-tree.png" width="100%"/>
+					</section>
+					<section>
+						<img src="img/another-b-tree.png" width="100%"/>
+					</section>
+					<section>
+						For safety, you also need a <b>write-ahead log</b>.
+					</section>
+				</section>
 				<section>Part III: Data Models In Use Today</section>
 				<section>
 					<img src="img/survey.png" width="100%"/>
@@ -324,23 +569,42 @@
 						</textarea>
 					</section>
 				</section>
-				<section data-markdown>
-					<textarea data-template>
-						## wide-column stores
-						* Two-dimensional key-value store.
-						* Halfway between a relational database and a document store.
-						* More flexible than the relational model, more scalable than the document store model.
-						* Examples: Apache Cassandra, Google Bigtable
-					</textarea>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							## wide-column stores
+							* Two-dimensional key-value store.
+							* Halfway between a relational database and a document store.
+							* More flexible than the relational model, more scalable than the document store model.
+							* Examples: Apache Cassandra, Google Bigtable.
+						</textarea>
+					</section>
+					<section>
+						<img src="img/wide-columns.png" width="100%"/>
+					</section>
 				</section>
-				<section data-markdown>
-					<textarea data-template>
-						## column-oriented store
-						* Column-oriented instead of row-oriented.
-						* Optimized for OLAP workloads.
-						* Usually used in combination with **sharding** and **cluster compute**.
-						* Examples: Google BigQuery, Apache Spark (uses Parquet)
-					</textarea>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							## column-oriented store
+							* Column-oriented instead of row-oriented.
+							* Optimized for OLAP workloads.
+							* Typically use **offline storage** and **cluster compute**.
+							* Examples: Google BigQuery, Apache Spark (Parquet), Snowflake.
+						</textarea>
+					</section>	
+					<section>
+						<img src="img/spark-cluster.png" width="100%"/>
+					</section>
+					<section>
+						<a href="https://dbc-7a97cf19-fcd3.cloud.databricks.com/?o=5171825941965235#notebook/4094551638533800/command/4359156526934984">Some example Spark queries.</a>
+					</section>
+					<section>
+						<img src="img/columnar-storage.png" width="100%"/>
+					</section>
+					<section>
+						<img src="img/run-length-encoding.jpg" width="100%"/>
+					</section>
 				</section>
 				<section>
 					<section data-markdown>
