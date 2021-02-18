@@ -4,11 +4,11 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+		<title>A Primer On Database Architectures</title>
 
 		<link rel="stylesheet" href="dist/reset.css">
 		<link rel="stylesheet" href="dist/reveal.css">
-		<link rel="stylesheet" href="dist/theme/black.css" id="theme">
+		<link rel="stylesheet" href="dist/theme/white.css" id="theme">
 
 		<!-- Theme used for syntax highlighted code -->
 		<link rel="stylesheet" href="plugin/highlight/monokai.css" id="highlight-theme">
@@ -16,8 +16,382 @@
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
+				<section>A Primer on Database Architectures</section>
+				<section>Part I: What Is A Database?</section>
+				<section data-markdown>
+					<textarea data-template>
+						There are just three intrinsic properties in a database:
+
+						* Persistent insert
+						* Persistent read
+						* Delete
+
+						That's it!
+					</textarea>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							A database is *not* required to have:
+	
+							* Transactions
+							* SQL
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							What is **SQL**?
+
+							SQL is a declarative programming language for querying databases.
+
+							```sql
+							SELECT (name, job_title AS role, job_id) FROM employees;
+							```
+
+							```sql
+							INSERT INTO employees ("Aleksey Bilogur", "Glue Person", 42);
+							```
+
+							```sql
+							SELECT employees.id, jobs.job_id
+								FROM employees
+								INNER JOIN jobs ON employee.job_id=jobs.job_id
+							```
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							SQL is a specification, which is implemented to various degrees by various different database vendors.
+
+							It's supposed to be *portable* and *read like plain English*.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							What is a **transaction**?
+
+							```python
+							db = create_database_connection()
+							transaction.begin()
+							db.exec("INSERT INTO table ('a', 'b', 'c')")
+							db.exec("INSERT INTO table ('d', 'e', 'f')")
+							try:
+								db.commit()
+							except:
+								db.rollback()
+							transaction.close()
+							```
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Until the NoSQL movement gained traction in ~2010, all commonly used databases used SQL.
+
+							Some databases shipped without it (you would write queries using the vendor's Python/JS/etcetera API package instead).
+
+							In 2021, databases are mostly back to shipping with SQL support (including the ones that started without it!).
+						</textarea>
+					</section>
+				</section>
+				<section>Part III: Data Models In Use Today</section>
+				<section>
+					<img src="img/survey.png" width="100%"/>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							## relational databases
+							* SQLite, PostGres, MySQL, MariaDB, etcetera.
+							* Relational schema, SQL query language.
+							* Optimized for online transaction processing.
+							* But can do almost anything these days.
+							* Want to use something else instead?
+							  
+							  You better have a compelling reason why.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							### <img src="img/sqlite.png" width="200"/>
+							* A simple file-based DB (no managed DB process).
+							* No concurrency&mdash;all requests are serial.
+							* Transactions.
+							* Limited SQL support.
+							* Open source.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							### <img src="img/postgres.png" width="200"/>
+							* The most popular full-featured relational DB.
+							* Concurrency, transactions.
+							* Broad SQL support.
+							* Open source.
+							* Great plugin ecosystem (PostGIS etcetera).
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							### <img src="img/mysql.png" width="200"/>
+							* The second (?) most popular full-featured DB.
+							* Concurrency, transactions.
+							* Broad SQL support.
+							* Open source.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							### <img src="img/sql-server.png" width="200"/> <img src="img/oracle.png" width="100"/>
+							* Closed source.
+							* 🌈 "enterprise ready" 🍀
+							* No that doesn't actually mean anything.
+							* Used for historical reasons.
+							* Or by large orgs that need support contracts.
+						</textarea>
+					</section>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## on-disk key-value stores
+						* A hash map that flushes to disk.
+						* Extremely simple data model.
+						* Uses a log-structured file for storage.
+						* Mostly used for data-persistence-as-a-service by more complex APIs.
+						* Examples: Bitcask, Apache Zookeeper
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## in-memory key-value stores
+						* A hash map (mostly string-to-string) that is kept in memory (RAM).
+						* Upside: *fast as all hell*.
+						* Downside: *data gets wiped on process crashes*.
+						* Modern implementations have some persistence features but this is a huge slow-down.
+						* Typically used as a **caching** layer in front of a truly persistent backing service.
+						* Exampes: Memcached, Redis.
+					</textarea>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							## document stores
+							* Stores data in **documents** (typically arbitrary JSON) instead of tables.
+							* Upside: easy to use! Promotes **locality**.
+							* Downside: data becomes **schema-on-read**. Limited transaction support. Implementations have historically been buggy as hell.
+							* Avoid using at scale.
+							* Examples: MongoDB, CouchDB, Firebase Firestore.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Let's talk about **locality**. Look at those joins!
+
+							<img src="img/gates.jpg" width="90%" />
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Using the document model instead, **we can store and retrieve the profile as a single object**:
+
+							```json
+							{
+								"user_id": 251,
+								"first_name": "Bill",
+								"last_name": "Gates",
+								"summary": "Co-chair of...",
+								"region_id": "us:91",
+								"industry_id": 131,
+								"photo_url": "/p/7/000/253/05b/308ddd6e.jpg",
+								"positions": [
+									{"job_title": "Co-chair", "org": "..."},
+									{"job_title": "Co-founder", "org": "Microsoft"}
+								],
+								"education": [
+									{"school_name": "Harvard", "start": 1973, "end": 1975},
+									{"school_name": "Lakeside", "start": null, "end": null}
+								],
+								"contact_info": {
+									"blog": "http://thegatesnotes.com",
+									"twitter": "http://twitter.com/BillGates"
+								}
+							}
+							```
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Consuming this in the front-end is trivially easy:
+
+							```jsx
+							class LinkedInProfilePage extends React.Component {
+								render() => <Profile {...mongo.getDocumentById(251)} />
+							}
+							```
+
+							This is why document stores have a reputation for being easy to use.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Let's talk about **schema-on-read**.
+
+							You insert:
+
+							```json
+							{
+								"name": "Aleksey Bilogur",
+								"description": "Generally awesome."
+							}
+							```
+
+							And then:
+
+							```json
+							{
+								"name": "Joe Biden",
+								"description": "He's the president!"
+							}
+							```
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							You write some code that queries it:
+
+							```python
+							for person in people:
+								print(person['name'])
+							```
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Later, someone else inserts:
+
+							```json
+							{
+								"first": "Sonic",
+								"last": "Hedgehog",
+								"description": "Gotta go fast."
+							}
+							```
+
+							This would fail in a relational DB, but it's OK in a document store, because we don't track the document schema.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							There's a problem though. Now your preexisting code will fail!
+
+							```python
+							for person in people:
+								print(person['name'])
+							# raises b/c the new record doesn't have a 'name' field
+							```
+
+							You'll have to duck test:
+
+							```python
+							for person in people:
+								if 'name' in person:
+									print(person['name'])
+								else:
+									print(person['first'] + ' ' + person['last'])
+							```
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Schema-on-read moves enforcing constraints from your *database* to your *application*.
+
+							In large codebases with complex documents this quickly becomes a nightmare.
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							"Implementations have been buggy as hell" requires a lot more exposition than I have space for here.
+
+							Suffice to say, **document stores have a reputation for silently losing documents when used at scale**.
+
+							It turns out they are really hard to implement well!
+
+							For more details read [Jepsen's MongoDB Review](http://jepsen.io/analyses/mongodb-4.2.6).
+						</textarea>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							TLDR: do not ever use a document database as your primary database of record.
+						</textarea>
+					</section>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## wide-column stores
+						* Two-dimensional key-value store.
+						* Halfway between a relational database and a document store.
+						* More flexible than the relational model, more scalable than the document store model.
+						* Examples: Apache Cassandra, Google Bigtable
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## column-oriented store
+						* Column-oriented instead of row-oriented.
+						* Optimized for OLAP workloads.
+						* Usually used in combination with **sharding** and **cluster compute**.
+						* Examples: Google BigQuery, Apache Spark (uses Parquet)
+					</textarea>
+				</section>
+				<section>
+					<section data-markdown>
+						<textarea data-template>
+							## graph databases
+							* Optimized for graph queries (think social networks).
+							* Don't use SQL for queries, use SQARQL or one of its alternatives instead.
+							* Examples: JanusGraph, Neo4j.
+						</textarea>
+					</section>
+					<section>
+						<img src="img/graph.png" width="100%"/>
+					</section>
+					<section>
+						Betweeness centrality, for example.
+
+						<img src="img/betweeness-centrality.png" width="50%"/>
+					</section>
+					<section data-markdown>
+						<textarea data-template>
+							Example SPARQL query for:
+							
+							> "What are all the country capitals in Africa?"
+							
+							```sparql
+							PREFIX ex: <http://example.com/exampleOntology#>
+							SELECT ?capital
+								   ?country
+							WHERE
+							  {
+								?x  ex:cityname       ?capital   ;
+									ex:isCapitalOf    ?y         .
+								?y  ex:countryname    ?country   ;
+									ex:isInContinent  ex:Africa  .
+							  }
+							```
+						</textarea>
+					</section>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## "other"
+						* This is my cop-out category, heh.
+						* This is not an exhaustive list of data models, it's just all of the ones that AFAIK are popular _right now_.
+						* However there are data models for niche use cases, e.g. Apache Druid or TrailDB.
+						* There are non-DBs with DB features, e.g. Kafka.
+					</textarea>
+				</section>
+				<section>
+					<img src="img/survey.png" width="100%"/>
+				</section>
 			</div>
 		</div>
 
